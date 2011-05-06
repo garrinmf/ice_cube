@@ -145,6 +145,14 @@ module IceCube
       #possibility that recurrence dates before the from time could be in the array
       nexts.select{|occurrence| occurrence > from}.first(n)
     end
+    
+    def last_occurrence(before = Time.now)
+      last_occurrence(1, before)
+    end
+    
+    def last_occurrence(n, before = Time.now)
+      occurrences_between(@start_date, before).last(n)
+    end
 
     # Retrieve the first (n) occurrences of the schedule.  May return less than
     # n results, if the rules end before n results are reached.
