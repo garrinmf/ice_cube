@@ -150,7 +150,7 @@ module IceCube
       last_occurrence(1, before)
     end
     
-    def last_occurrence(n, before = Time.now)
+    def last_occurrences(n, before = Time.now)
       occurrences_between(@start_date, before).last(n)
     end
 
