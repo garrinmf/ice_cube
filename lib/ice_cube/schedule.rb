@@ -147,7 +147,7 @@ module IceCube
     end
     
     def last_occurrence(before = Time.now)
-      last_occurrence(1, before)
+      last_occurrences(1, before)
     end
     
     def last_occurrences(n, before = Time.now)
