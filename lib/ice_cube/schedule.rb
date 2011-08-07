@@ -12,7 +12,7 @@ module IceCube
       @exrule_occurrence_heads = []
       @rdates = []
       @exdates = []
-      @start_date = start_date
+      @start_date = start_date || Time.now
       raise ArgumentError.new('Duration cannot be negative') if options[:duration] && options[:duration] < 0
       @duration = options[:duration]
       raise ArgumentError.new('Start time must be before end time') if options[:end_time] && options[:end_time] < @start_date
@@ -115,6 +115,15 @@ module IceCube
       self.occurrences_between(Time.send(time_format, date.year, date.month, date.day, 0, 0, 0), Time.send(time_format, date.year, date.month, date.day, 23, 59, 59)).any?
     end
 
+    def occurs_between?(begin_time, end_time)
+      if defined?(ActiveSupport::TimeWithZone) && @start_date.is_a?(ActiveSupport::TimeWithZone)
+        return active_support_occurs_between?(begin_time, end_time)
+      end
+      # fall back to our own way of doing things
+      time_format = @start_date.utc? ? :utc : :local
+      self.occurrences_between(Time.send(time_format, begin_time.year, begin_time.month, begin_time.day, 0, 0, 0), Time.send(time_format, end_time.year, end_time.month, end_time.day, 23, 59, 59)).any?
+    end
+
     # Return all possible occurrences
     # In order to make this call, all rules in the schedule must have
     # either an until date or an occurrence count
@@ -167,6 +176,14 @@ module IceCube
       @rrule_occurrence_heads << RuleOccurrence.new(rule, @start_date, @end_time)
     end
 
+    # Remove a recurrence rule, returns the removed rules, or nil
+    def remove_recurrence_rule(rule)
+      raise ArgumentError.new('Argument must be a valid rule') unless rule.class < Rule
+      deletions = []
+      @rrule_occurrence_heads.delete_if { |h| deletions << h.rule if h.rule == rule }
+      deletions
+    end
+
     def rrules
       @rrule_occurrence_heads.map { |h| h.rule }
     end
@@ -175,6 +192,14 @@ module IceCube
     def add_exception_rule(rule)
       raise ArgumentError.new('Argument must be a valid rule') unless rule.class < Rule
       @exrule_occurrence_heads << RuleOccurrence.new(rule, @start_date, @end_time)
+    end
+
+    # Remove an exception rule, returns the removed rule, or nil
+    def remove_exception_rule(rule)
+      raise ArgumentError.new('Argument must be a valid rule') unless rule.class < Rule
+      deletions = []
+      @exrule_occurrence_heads.delete_if { |h| deletions << h.rule if h.rule == rule }
+      deletions
     end
 
     def exrules
@@ -186,9 +211,21 @@ module IceCube
       @rdates << date unless date.nil?
     end
 
+    # Remove an individual date from this schedule's recurrence dates
+    # return date that was removed, nil otherwise
+    def remove_recurrence_date(date)
+      @rdates.delete(date)
+    end
+
     # Add an individual date exception to this schedule
     def add_exception_date(date)
       @exdates << date unless date.nil?
+    end
+
+    # Remove an individual date exception from this schedule's exception dates
+    # return date that was removed, nil otherwise
+    def remove_exception_date(date)
+      @exdates.delete(date)
     end
 
     def occurrences_between(begin_time, end_time)
@@ -208,10 +245,15 @@ module IceCube
     end
 
     alias :rdate :add_recurrence_date
-    alias rrule add_recurrence_rule
-    alias exdate add_exception_date
-    alias exrule add_exception_rule
-
+    alias :rrule :add_recurrence_rule
+    alias :exdate :add_exception_date
+    alias :exrule :add_exception_rule
+    alias :recurrence_dates :rdates
+    alias :exception_dates :exdates
+    alias :remove_rdate :remove_recurrence_date
+    alias :remove_exdate :remove_exception_date
+    alias :remove_rrule :remove_recurrence_rule
+    alias :remove_exrule :remove_exception_rule
 
     private
 
@@ -220,6 +262,13 @@ module IceCube
     def active_support_occurs_on?(date)
       time = Time.zone.parse(date.to_s) # date.to_time.in_time_zone(@start_date.time_zone)
       occurrences_between(time.beginning_of_day, time.end_of_day).any?
+    end
+
+    def active_support_occurs_between(start_time, end_time)
+      time_start = Time.zone.parse(start_time.to_s) # date.to_time.in_time_zone(@start_date.time_zone)
+      time_end = Time.zone.parse(end_time.to_s) # date.to_time.in_time_zone(@end_date.time_zone)
+
+      occurrences_between(time_start.beginning_of_day, time_end.end_of_day).any?
     end
 
     # tell if, from a list of rule_occurrence heads, a certain time is occurring
